@@ -47,7 +47,7 @@ Public Class formMain
     Public Const ClientLength As Integer = 1024
     Public ClientEncoding As Encoding = Encoding.UTF8
     Public ClientPort As Integer = 233
-    Public Const ClientVersion As Integer = 10
+    Public Const ClientVersion As Integer = 11
     Public isShowUpdate As Boolean = False
     Public isShowCreate As Boolean = False
     Public pingStartTime As Date = Date.Now
@@ -271,8 +271,7 @@ Public Class formMain
                                      }
                                      '连接并发送登录请求
                                      ClientSocket.Connect(remoteEP)
-                                     ClientSend("Login|" & ClientVersion & "|" & UserName.Replace("¨", "-").Replace("|", "/") & "|" & NetworkInformation.NetworkInterface.GetAllNetworkInterfaces(0).GetPhysicalAddress.ToString)
-                                     '接取信息
+                                     ClientSend("Login|" & ClientVersion & "|" & UserName.Replace("¨", "-").Replace("|", "/") & "|" & NetworkInformation.NetworkInterface.GetAllNetworkInterfaces(0).GetPhysicalAddress.ToString)                                     '接取信息
                                      Dim bytes(ClientLength) As Byte
                                      Dim bytesRec As Integer = ClientSocket.Receive(bytes)
                                      Dim ret As String = ClientEncoding.GetString(bytes, 0, bytesRec)
@@ -508,13 +507,18 @@ Public Class formMain
     Private Sub timerGame_Tick() Handles timerGame.Tick
         If UserState = UserStates.Game And Val(labGameTimer.Content) > 0 Then labGameTimer.Content = Val(labGameTimer.Content) - 1
     End Sub
-    Private Sub btnGameSelect1_Click(sender As Object, e As EventArgs) Handles btnGameSelect1.Click
-        Dim th As New Thread(Sub() ClientSend("Select|0"))
-        th.Start()
+    Private Sub btnGameSelect_Click1(sender As Button, e As EventArgs) Handles btnGameSelect1.Click, btnGameSelect2.Click
+        Dim SendContent As String = sender.Tag
+        RunInThread(Sub() ClientSend(SendContent))
+        If Not sender.Tag.Equals("Select|0") And Not sender.Tag.Equals("Select|1") Then
+            sender.IsEnabled = False
+        End If
+        panGameSelect.Visibility = Visibility.Hidden
+        closeSelectPan.Visibility = Visibility.Hidden
     End Sub
-    Private Sub btnGameSelect2_Click(sender As Object, e As EventArgs) Handles btnGameSelect2.Click
-        Dim th As New Thread(Sub() ClientSend("Select|1"))
-        th.Start()
+
+    Public Sub RunInThread(ThreadStart As ThreadStart)
+        ThreadStart()
     End Sub
 
 #End Region
@@ -617,6 +621,7 @@ Public Class formMain
                                           btnRoomPrepare.IsEnabled = Not UserMaster
                                           btnRoomPrepare.Content = If(UserMaster, "开始游戏", "准备")
                                           btnRoomExit.IsEnabled = True
+                                          btnChoiceWord.IsEnabled = False
                                           labRoomName.Content = Parms(0)
                                       End Sub)
                 ElseIf gameMode = "NHWC" Then
@@ -705,34 +710,61 @@ Public Class formMain
                                   End Sub)
 
             Case "Select"
-                'Select(String? 选择1, String? 选择2)：改变选题区显示，若隐藏选题区则无参数
+                'Select(String? 选择1, String? 选择2)：改变选题区显示
                 If gameMode = "NHWC" Then
                     Dispatcher.Invoke(Sub()
-                                          If Parm = "" Then
-                                              '隐藏
-                                              panGameSelect.Visibility = Visibility.Hidden
-                                          Else
-                                              '显示
-                                              Beep()
-                                              panGameSelect.Visibility = Visibility.Visible
-                                              btnGameSelect1.Text = Parms(0)
-                                              btnGameSelect2.Text = Parms(1)
-                                          End If
+                                          '显示
+                                          btnChoiceWord.IsEnabled = False
+                                          gameSelectTitle.Text = "选择题目"
+                                          Beep()
+                                          panGameSelect.Visibility = Visibility.Visible
+                                          btnGameSelect1.Text = Parms(0)
+                                          btnGameSelect1.IsEnabled = True
+                                          btnGameSelect1.Tag = "Select|0"
+                                          btnGameSelect2.Text = Parms(1)
+                                          btnGameSelect2.IsEnabled = True
+                                          btnGameSelect2.Tag = "Select|1"
                                       End Sub)
                 ElseIf gameMode = "NSWC" Then
                     Dispatcher.Invoke(Sub()
-                                          If Parm = "" Then
-                                              '隐藏
-                                              panChat.Margin = New Thickness(279, 68, 25, 25)
-                                              panGameSelect.Visibility = Visibility.Hidden
-                                          Else
-                                              '显示
-                                              'panChat.Margin = New Thickness(279, 46, 25, 25)
-                                              Beep()
-                                              panGameSelect.Visibility = Visibility.Visible
-                                              btnGameSelect1.Text = Parms(0)
-                                              btnGameSelect2.Text = Parms(1)
-                                          End If
+                                          '显示
+                                          btnChoiceWord.IsEnabled = False
+                                          gameSelectTitle.Text = "选择题目"
+                                          'panChat.Margin = New Thickness(279, 46, 25, 25)
+                                          Beep()
+                                          panGameSelect.Visibility = Visibility.Visible
+                                          btnGameSelect1.Text = Parms(0)
+                                          btnGameSelect1.Tag = "Select|0"
+                                          btnGameSelect2.Text = Parms(1)
+                                          btnGameSelect2.Tag = "Select|1"
+                                      End Sub)
+                End If
+            Case "Hint"
+                'Hint(String 提示1, String 提示2)：初始化选择提示面板
+                Dispatcher.Invoke(Sub()
+                                      '启用
+                                      btnChoiceWord.IsEnabled = True
+                                      gameSelectTitle.Text = "选择要发送的提示"
+                                      Beep()
+                                      btnGameSelect1.Text = Parms(0)
+                                      btnGameSelect1.Tag = "Hint|" & Parms(0)
+                                      btnGameSelect2.Text = Parms(1)
+                                      btnGameSelect2.Tag = "Hint|" & Parms(1)
+                                  End Sub)
+            Case "SelectClear"
+                'SelectClear：隐藏选题区
+                If gameMode = "NHWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          '隐藏
+                                          btnChoiceWord.IsEnabled = False
+                                          panGameSelect.Visibility = Visibility.Hidden
+                                      End Sub)
+                ElseIf gameMode = "NSWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          '隐藏
+                                          btnChoiceWord.IsEnabled = False
+                                          panChat.Margin = New Thickness(279, 68, 25, 25)
+                                          panGameSelect.Visibility = Visibility.Hidden
                                       End Sub)
                 End If
             Case "Ping"
@@ -1030,5 +1062,15 @@ Public Class formMain
 
     Private Sub Set_Click(sender As Object, e As RoutedEventArgs)
 
+    End Sub
+
+    Private Sub btnChoiceWord_Click(sender As Object, e As RoutedEventArgs)
+        panGameSelect.Visibility = Visibility.Visible
+        closeSelectPan.Visibility = Visibility.Visible
+    End Sub
+
+    Private Sub btnCloseSelectPan_Click(sender As Object, e As RoutedEventArgs)
+        panGameSelect.Visibility = Visibility.Hidden
+        closeSelectPan.Visibility = Visibility.Hidden
     End Sub
 End Class

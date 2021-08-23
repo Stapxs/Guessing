@@ -30,11 +30,12 @@
         <Grid x:Name="panRoom" Background="#FFF7F7F7"/>
         <Grid Background="White" HorizontalAlignment="Left" Width="260" Margin="0,12,0,0">
             <Label x:Name="labRoomName" Content="XXX 的房间" VerticalAlignment="Top" FontSize="25" Margin="30,18,0,0" Padding="0" Height="40" VerticalContentAlignment="Center" Width="200" HorizontalAlignment="Left"/>
+            <Button Click="btnChoiceWord_Click" x:Name="btnChoiceWord" Width="208" pu:ButtonHelper.CornerRadius="3" Height="35" FontSize="14" Content="发送提示" Margin="25,433,0,79" HorizontalAlignment="Left"/>
             <WrapPanel Margin="20,0,20,25" Orientation="Horizontal" Height="40" VerticalAlignment="Bottom">
                 <Button x:Name="btnRoomPrepare" Width="100" pu:ButtonHelper.CornerRadius="3" Height="35" FontSize="14" Content="准备" Margin="5,0,10,0" HorizontalAlignment="Left"/>
-                <Button x:Name="btnRoomExit" Width="100" Height="35" pu:ButtonHelper.ButtonStyle="Outline"  pu:ButtonHelper.CornerRadius="3" FontSize="14" Content="退出" Margin="0,0,5,0" HorizontalAlignment="Right"/>
+                <Button x:Name="btnRoomExit" Width="100" Height="35" pu:ButtonHelper.ButtonStyle="Outline" pu:ButtonHelper.CornerRadius="3" FontSize="14" Content="退出" Margin="0,0,5,0" HorizontalAlignment="Right"/>
             </WrapPanel>
-            <ListBox x:Name="panList" Margin="22,88,0,94" HorizontalAlignment="Left" Width="213" Background="{x:Null}" BorderBrush="{x:Null}" ScrollViewer.CanContentScroll="False">
+            <ListBox x:Name="panList" Margin="22,88,0,137" HorizontalAlignment="Left" Width="213" Background="{x:Null}" BorderBrush="{x:Null}" ScrollViewer.CanContentScroll="False">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <VirtualizingStackPanel Orientation="Vertical"></VirtualizingStackPanel>
@@ -124,13 +125,17 @@
             <TextBox x:Name="textChat" Height="35" Margin="0,0,86,3" TextWrapping="Wrap" VerticalAlignment="Bottom" MaxLength="100" VerticalContentAlignment="Center" UndoLimit="20" FontSize="14" Padding="2,0,0,0"/>
             <Button x:Name="btnChat" Content="发送" pu:ButtonHelper.CornerRadius="3" HorizontalAlignment="Right" Height="35" VerticalAlignment="Bottom" Width="70" Margin="0,0,0,3" IsDefault="True"/>
         </Grid>
-        <Grid x:Name="panGameSelect" d:IsHidden="True" Margin="0,17,0,0" Background="#60000000" Visibility="Collapsed">
+        <Grid x:Name="panGameSelect" Margin="0,17,0,0" Background="#60000000">
+            <Grid x:Name="closeSelectPan" Visibility="Hidden">
+                <Button x:Name="btnCloseSelectPan" Click="btnCloseSelectPan_Click" Background="Transparent" pu:ButtonHelper.HoverBrush="Transparent"></Button>
+                <TextBlock Text="点击空白处关闭" Foreground="White" FontSize="12" Margin="402,393,406,0" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+            </Grid>
             <Grid Background="White" Margin="0" Width="520" Height="197" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <Grid.Effect>
                     <DropShadowEffect ShadowDepth="-4" BlurRadius="10" Color="#FFB4B4B4"/>
                 </Grid.Effect>
                 <StackPanel VerticalAlignment="Top" Margin="0,20,0,0">
-                    <TextBlock Text="选择题目" FontSize="25" TextAlignment="Center" Margin="0,10,0,30" HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="gameSelectTitle" Text="选择题目" FontSize="25" TextAlignment="Center" Margin="0,10,0,30" HorizontalAlignment="Center"/>
                     <Grid Height="165">
                         <local:Button x:Name="btnGameSelect1" Height="43" Margin="0,21,283,0" VerticalAlignment="Top" HorizontalAlignment="Right" Width="115"/>
                         <local:Button x:Name="btnGameSelect2" HorizontalAlignment="Left" Height="40" Margin="283,21,0,0" VerticalAlignment="Top" Width="115"/>
@@ -251,6 +256,7 @@
                                     <TextBlock FontSize="12" Margin="0 ,5" Text="= [1.1+兼容] 更加流畅的绘画体验"/>
                                     <TextBlock FontSize="12" Margin="0 ,5" Text="= [1.1+兼容] 标题修改BUG"/>
                                     <TextBlock FontSize="12" Margin="0 ,5" Text="+ [1.1+兼容] 服务器版本对接"/>
+                                    <TextBlock FontSize="12" Margin="0 ,5" Text="+ [原版 v11 更新] 第一部分：自选提醒"/>
                                 </StackPanel>
                             </Grid>
                             <TextBlock Text="（使用标题栏左上角返回按钮返回）" FontSize="14" Margin="0,20,0,30" TextAlignment="Center"/>
@@ -260,7 +266,7 @@
                 <Label x:Name="labLogin" Foreground="#FF646464" Margin="0,15,0,5" HorizontalAlignment="Center" FontSize="13" Content=" " VerticalAlignment="Bottom"/>
             </Grid>
             <WrapPanel Height="30" VerticalAlignment="Bottom" HorizontalAlignment="Right">
-                <TextBlock Text="V.1.1.14 - SS官改版" FontSize="12" Foreground="#FF646464" VerticalAlignment="Center" TextAlignment="Right" HorizontalAlignment="Center"/>
+                <TextBlock Text="V.1.2.13 - SS官改版" FontSize="12" Foreground="#FF646464" VerticalAlignment="Center" TextAlignment="Right" HorizontalAlignment="Center"/>
                 <Button pu:ButtonHelper.Icon="" pu:ButtonHelper.ButtonStyle="Link" Height="30" Width="30" Margin="0,0,5,0" Click="Button_Click">
                     <Button.ToolTip>
                         <ToolTip x:Name="TTS" Placement="Right">
