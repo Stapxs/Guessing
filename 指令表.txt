@@ -17,6 +17,13 @@ Observe		Integer 人数									显示旁观者人数
 Chatable	Boolean 是否可以聊天							启用或关闭聊天
 Select		String? 选择1, String? 选择2					改变选题区显示，若隐藏选题区则无参数
 
+# 新增
+Version     Int 版本号                                  对接适配的服务端版本
+Ping        String 延时                                 [ CK 客户端适配功能 ] 处理服务端返回的 Ping 指令
+Mode        String 游戏模式                             [ 你画我猜新增 ] 改变游戏模式
+Drawable    Boolean 是否禁用画板                         [ 你画我猜新增 ] 是否禁用画板 
+Draw        int 坐标条数，Strings 坐标组                 [ 你画我猜新增 ] 画板坐标组
+
 ———— 服务端指令集 ————
 
 Exit													客户端退出
@@ -30,3 +37,6 @@ Prepare		Boolean 是否准备								改变准备状态
 Start													开始游戏
 Kick		String 玩家名								踢出玩家
 Select		Integer 选择编号								选择某个题目编号
+
+# 新增
+Draw        int 坐标条数，Strings 坐标组                [ 你画我猜新增 ] 画板坐标组 （服务端只是对这条信息进行全员转发）
