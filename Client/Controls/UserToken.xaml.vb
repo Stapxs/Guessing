@@ -25,10 +25,10 @@
 
     Public Property LeftText As String
         Get
-            Return labLeft.Content
+            Return labLeft.Text
         End Get
         Set(value As String)
-            labLeft.Content = value
+            labLeft.Text = value
         End Set
     End Property
 
@@ -48,7 +48,7 @@
         InitializeComponent()
         On Error Resume Next
         Dim parms() As String = data.Split("/")
-        Color = GetStringFromEnum(CType(parms(0), Colors))
+        Color = GetEnumFromString(GetType(Colors), parms(0))
         RightText = parms(1)
         LeftText = parms(2)
     End Sub

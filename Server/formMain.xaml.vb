@@ -63,15 +63,12 @@ Public Class formMain
     Public ServerSocket As Socket
     Public Const ServerLength As Integer = 1024
     Public ServerEncoding As Encoding = Encoding.UTF8
-    Public Const ServerPort As Integer = 233
+    Public ServerPort As Integer = 233
     Public Const ServerVersion As Integer = 10
-#If DEBUG Then
-    Public Const ServerIP As String = "192.168.1.6"
-    Public Const ServerHeartbeatFail As Integer = 10000
-#Else
-    Public Const ServerIP As String = "172.17.0.8"
-    Public Const ServerHeartbeatFail As Integer = 2
-#End If
+    Public SeverVerMax = 110
+
+    Public ServerIP As String = "172.30.0.9"
+    Public ServerHeartbeatFail As Integer = 2
 
     '心跳包
     Public ServerHeartbeatCode As Integer = 1
@@ -199,6 +196,7 @@ Public Class formMain
                     }
                     UserList.Add(u)
                     UserJoin(u)
+                    newUser.Send(ServerEncoding.GetBytes("Version|" + SeverVerMax.ToString))
 
 #End Region
                 Catch ex As Exception
@@ -337,6 +335,9 @@ Public Class formMain
     Private Sub btnState_Click() Handles btnState.Click
         Select Case btnState.Content
             Case "启动服务端"
+                ServerIP = IP.Text
+                ServerPort = Convert.ToInt32(PT.Text)
+                ServerHeartbeatFail = Convert.ToInt32(HE.Text)
                 ServerOn()
             Case "关闭服务端"
                 ServerOff()
@@ -515,6 +516,10 @@ Public Class formMain
     Public Class RoomData
 
         ''' <summary>
+        ''' 房间的模式。
+        ''' </summary>
+        Public Mode As String
+        ''' <summary>
         ''' 房间的名字。
         ''' </summary>
         Public Name As String
@@ -539,7 +544,8 @@ Public Class formMain
         ''' <summary>
         ''' 创建房间。
         ''' </summary>
-        Public Sub New(m As UserData)
+        Public Sub New(m As UserData, modea As String)
+            Mode = modea
             Name = m.Name & " 的房间"
             Master = m
             Users = New ArrayList
@@ -745,6 +751,11 @@ Public Class formMain
         '预处理信息，获取其类型与参数
         If Command = "" Then Exit Sub
         Dim CommandType As String = Command.Split("|")(0)
+        If CommandType = "Draw" Then
+            'Draw(int 坐标条数，Strings 坐标组): 在画板上绘制
+            BoardcastInRoom(Command, u.Room)
+            Exit Sub
+        End If
         Dim Parm As String = ""
         If Command.StartsWith(CommandType & "|") Then Parm = Command.Substring(CommandType.Length + 1)
         Dim Parms() As String = Parm.Split("|")
@@ -760,16 +771,23 @@ Public Class formMain
                 If Parm = ServerHeartbeatCode Then u.HeartbeatFail = 0
 
             Case "Create"
-                'Create()：创建房间
+                'Create()：创建房间  'Create(String 房间的游戏): 为了兼容旧版客户端，此参数不必填
                 If u.RoomState = UserRoomStates.Away Then
                     u.Send("Clear")
-                    Dim r As New RoomData(u)
+                    Dim mode As String
+                    If Not Parms(0) = "" Then
+                        mode = Parms(0)
+                        Dim r As New RoomData(u, mode)
+                    Else
+                        Dim r As New RoomData(u, "NSWC")
+                    End If
                 End If
 
             Case "Join"
                 'Join(Integer 房间编号)：加入游戏房间
                 If u.RoomState = UserRoomStates.Away And Val(Parms(0)) < RoomList.Count Then
                     Dim r As RoomData = RoomList(Val(Parms(0)))
+                    u.Send("Mode|" + r.Mode)
                     u.Send("Clear")
                     r.Join(u)
                 End If
@@ -780,7 +798,7 @@ Public Class formMain
 
             Case "Chat"
                 'Chat(String 文本...)：提交聊天信息
-                If My.Computer.Clock.TickCount - u.LastSend < 600 Then
+                If My.Computer.Clock.TickCount - u.LastSend < 1000 Then
                     u.Send("Chat|系统：你说话太快了，缓缓吧……|False")
                     Exit Sub
                 End If
@@ -839,13 +857,20 @@ Public Class formMain
                                            "Content|请描述：" & u.Room.SG.Answer & "¨" &
                                            "Select¨" &
                                            "Chatable|True")
+                            If u.Room.Mode = "NHWC" Then
+                                us.Send("Chatable|False")
+                            End If
                         Else
                             us.Send("Chat|系统：本题共 " & u.Room.SG.Answer.Count & " 个字。|True¨" &
                                            "Content|提示：" & u.Room.SG.Answer.Count & " 个字¨")
                         End If
                     Next
                 End If
-
+            Case "Clear"
+                '清除内容
+                For Each us As UserData In u.Room.Users
+                    us.Send("Clear|NHWC")
+                Next
         End Select
     End Sub
 

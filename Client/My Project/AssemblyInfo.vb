@@ -11,11 +11,11 @@ Imports System.Windows
 
 '查看程序集特性的值
 
-<Assembly: AssemblyTitle("你说我猜")>
+<Assembly: AssemblyTitle("Client")>
 <Assembly: AssemblyDescription("")>
 <Assembly: AssemblyCompany("")>
-<Assembly: AssemblyProduct("你说我猜")>
-<Assembly: AssemblyCopyright("Copyright © 龙腾猫跃 2018-2021")>
+<Assembly: AssemblyProduct("Client")>
+<Assembly: AssemblyCopyright("Copyright ©  2018")>
 <Assembly: AssemblyTrademark("")>
 <Assembly: ComVisible(false)>
 

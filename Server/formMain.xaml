@@ -7,7 +7,10 @@
         mc:Ignorable="d"
         Title="Server" Height="500" Width="550">
     <Grid>
-        <Grid x:Name="panLog" Background="White" Margin="10,60,10,10">
+        <TextBox x:Name="IP" Margin="10,0,161,376" Height="25" VerticalAlignment="Bottom" />
+        <TextBox x:Name="PT" Margin="387,0,66,376" Height="25" VerticalAlignment="Bottom" RenderTransformOrigin="0.5,0.5"/>
+        <TextBox x:Name="HE" Margin="483,0,10,376" Height="25" VerticalAlignment="Bottom" />
+        <Grid x:Name="panLog" Background="White" Margin="10,111,10,10">
             <ListBox x:Name="listLog" Margin="0,0,0,35"/>
             <TextBox x:Name="textLogUser" Height="25" VerticalAlignment="Bottom" MaxLength="500" VerticalContentAlignment="Center" Width="110" HorizontalAlignment="Left"/>
             <TextBox x:Name="textLog" Height="25" Margin="120,0,60,0" VerticalAlignment="Bottom" MaxLength="500" VerticalContentAlignment="Center"/>

@@ -1,15 +1,41 @@
 ﻿#Disable Warning IDE1006
+Imports System.IO.Compression
 Imports System.Net.Sockets
+Imports System.Text.RegularExpressions
+Imports System.Windows.Threading
 
 Public Class formMain
 
 #Region "Load | 初始化"
 
-    Public Const LoadTitle As String = "你说我猜"
+    Public Const LoadTitle As String = "        Game Center"
+    Public gameMode As String = "NSWC"
     Private Sub LoadForm() Handles Me.Loaded
-        FrmMain = Me
-        AniStartRun()
+        frmMain = Me
         Title = LoadTitle
+        '读取预存的数据
+        If (File.Exists(Directory.GetCurrentDirectory() & "/Info.txt")) Then
+            Dim fm As New IO.FileStream(Directory.GetCurrentDirectory() & "/Info.txt", FileMode.Open)
+            Dim sr As IO.StreamReader = New IO.StreamReader(fm)
+            Dim text As String = sr.ReadLine()
+            If Not text = "NULL" Then textLogin.Text = text
+            text = sr.ReadLine()
+            If Not text = "NULL" Then textIp.Text = text
+            text = sr.ReadLine()
+            If Not text = "NULL" Then textPoit.Text = text
+            fm.Close()
+        End If
+        '判断首次打开
+        If Not (File.Exists(Directory.GetCurrentDirectory() & "/Start.txt")) Then
+            Dim sr As New IO.StreamWriter(Directory.GetCurrentDirectory() & "/Start.txt")
+            sr.WriteLine("Welcome!这个文件只是用来判断你有没有打开过的……")
+            sr.Close()
+            If Not isShowUpdate Then
+                mainLogin.Visibility = Visibility.Collapsed
+                mainUpd.Visibility = Visibility.Visible
+                isShowUpdate = True
+            End If
+        End If
     End Sub
 
 #End Region
@@ -20,15 +46,15 @@ Public Class formMain
     Public ClientSocket As Socket
     Public Const ClientLength As Integer = 1024
     Public ClientEncoding As Encoding = Encoding.UTF8
-    Public Const ClientPort As Integer = 233
+    Public ClientPort As Integer = 233
     Public Const ClientVersion As Integer = 10
-#If DEBUG Then
-    Public Const ClientIP As String = "192.168.1.6"
-    Public ClientHeartbeatTimeout As Integer = 10000
-#Else
-    Public Const ClientIP As String = "118.25.87.79"
+    Public isShowUpdate As Boolean = False
+    Public isShowCreate As Boolean = False
+    Public pingStartTime As Date = Date.Now
+
+    Public ClientIP As String
     Public ClientHeartbeatTimeout As Integer = 5
-#End If
+    Public ClientVerMax = 110
 
     '发送
     ''' <summary>
@@ -170,7 +196,8 @@ Public Class formMain
                                           panChat.Visibility = Visibility.Visible
                                           panList.Visibility = Visibility.Visible
                                           panGame.Visibility = Visibility.Collapsed
-                                          panChat.Margin = New Thickness(250, 90, 25, 25)
+                                          'panChat.Margin = New Thickness(279, 46, 25, 25)
+                                          panGameSelect.Visibility = Visibility.Hidden
                                       Case UserStates.Game
                                           panLogin.Visibility = Visibility.Collapsed
                                           panCenter.Visibility = Visibility.Collapsed
@@ -201,9 +228,42 @@ Public Class formMain
                                  Try
 
 #Region "发送登录请求并重新构建 ClientSocket"
+                                     '保存登录信息
 
+                                     Dispatcher.Invoke(Sub()
+                                                           Dim sr As New IO.StreamWriter(Directory.GetCurrentDirectory() & "/Info.txt")
+                                                           If Not textLogin.Text = "" Then
+                                                               sr.WriteLine(textLogin.Text)
+                                                           Else
+                                                               sr.WriteLine("NULL")
+                                                           End If
+                                                           If Not textIp.Text = "" Then
+                                                               sr.WriteLine(textIp.Text)
+                                                           Else
+                                                               sr.WriteLine("NULL")
+                                                           End If
+                                                           If Not textPoit.Text = "" Then
+                                                               sr.WriteLine(textPoit.Text)
+                                                           Else
+                                                               sr.WriteLine("NULL")
+                                                           End If
+                                                           sr.Close()
+                                                       End Sub)
                                      '构建 Socket
                                      If Not IsNothing(ClientSocket) Then ClientSocket.Dispose()
+                                     Dispatcher.Invoke(Sub()
+                                                           Dim text As String = textIp.Text
+                                                           '域名解析
+                                                           Try
+                                                               Dim ip() As IPAddress = Dns.GetHostAddresses(text)
+                                                               For Each ipa As IPAddress In ip
+                                                                   text = ipa.ToString
+                                                               Next
+                                                           Catch
+                                                           End Try
+                                                           ClientIP = text
+                                                           ClientPort = CInt(textPoit.Text)
+                                                       End Sub)
                                      Dim remoteEP As New IPEndPoint(IPAddress.Parse(ClientIP), ClientPort)
                                      ClientSocket = New Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) With {
                                          .ReceiveTimeout = ClientHeartbeatTimeout * 1000 + 5000,
@@ -320,6 +380,10 @@ Public Class formMain
                                     .FontWeight = If(isbold, FontWeights.Bold, FontWeights.Normal),
                                     .Tag = GetUUID()
                                   }
+                                  tb.Margin = New Thickness With {
+                                    .Top = 5,
+                                    .Bottom = 5
+                                  }
                                   listChat.Items.Add(tb)
                                   If listChat.Items.Count >= 100 Then listChat.Items.RemoveAt(0)
                                   listChat.ScrollIntoView(tb)
@@ -333,6 +397,29 @@ Public Class formMain
     ''' </summary>
     Private Sub ChatSend() Handles btnChat.Click
         If textChat.Text.Trim = "" Then Exit Sub
+        If Strings.Left(textChat.Text.Trim, 1) = "/" Then
+            If textChat.Text.Trim = "/me Ping|Start" Or textChat.Text.Trim = ".ping" Or textChat.Text.Trim = ".Ping" Then
+                pingStartTime = Date.Now
+                Dispatcher.Invoke(Sub()
+                                      Try
+                                          Dim tb As New TextBlock With {
+                                            .Text = "[本地] 发送Ping请求，时间戳：" + Date.Now.ToString,
+                                            .FontSize = 14,
+                                            .FontWeight = If(True, FontWeights.Bold, FontWeights.Normal),
+                                            .Tag = GetUUID()
+                                          }
+                                          tb.Margin = New Thickness With {
+                                            .Top = 5,
+                                            .Bottom = 5
+                                          }
+                                          listChat.Items.Add(tb)
+                                          If listChat.Items.Count >= 100 Then listChat.Items.RemoveAt(0)
+                                          listChat.ScrollIntoView(tb)
+                                      Catch
+                                      End Try
+                                  End Sub)
+            End If
+        End If
         ClientSend(New RegularExpressions.Regex("[\u0000-\u001F\u007F-\u00A0]").Replace("Chat|" & textChat.Text.Replace("¨", "-").Replace("|", "/"), ""))
         textChat.Text = ""
     End Sub
@@ -356,9 +443,8 @@ Public Class formMain
     ''' 创建房间。
     ''' </summary>
     Private Sub btnCenterCreate_Click(sender As Object, e As RoutedEventArgs) Handles btnCenterCreate.Click
-        UserMaster = True
-        ClientSend("Create")
-        btnRoomExit.IsEnabled = True
+        isShowCreate = True
+        panModeSelect.Visibility = Visibility.Visible
     End Sub
 
     ''' <summary>
@@ -383,6 +469,8 @@ Public Class formMain
         ElseIf UserState = UserStates.Game And Not labGameTitle.Content.ToString.Contains("旁观") Then
             If MsgBox("当前正在游戏中，突然下线是很没人品的行为哦，是否确认？", MsgBoxStyle.Exclamation + MsgBoxStyle.OkCancel, "提示") = MsgBoxResult.Cancel Then Exit Sub
         End If
+        btnRoomPrepare.Visibility = Visibility.Visible
+        btnRoomPrepare.IsEnabled = False
         ClientSend("Leave")
     End Sub
 
@@ -390,18 +478,20 @@ Public Class formMain
     ''' 准备 / 取消准备 / 开始游戏。
     ''' </summary>
     Private Sub btnRoomPrepare_Click(sender As Object, e As RoutedEventArgs) Handles btnRoomPrepare.Click
-        Select Case btnRoomPrepare.Text
+        Select Case btnRoomPrepare.Content
             Case "准备"
                 ClientSend("Prepare|True")
-                btnRoomPrepare.Text = "取消准备"
+                btnRoomPrepare.Content = "取消准备"
                 btnRoomExit.IsEnabled = False
                 btnRoomPrepare.IsEnabled = False
             Case "取消准备"
                 ClientSend("Prepare|False")
-                btnRoomPrepare.Text = "准备"
+                btnRoomPrepare.Content = "准备"
                 btnRoomExit.IsEnabled = True
             Case "开始游戏"
+                btnRoomPrepare.Visibility = Visibility.Collapsed
                 ClientSend("Start")
+                Return
         End Select
         btnRoomPrepare.IsEnabled = False
         Dim th As New Thread(Sub()
@@ -443,8 +533,13 @@ Public Class formMain
     Public Sub ClientExecute(Command As String)
         If Not Command.StartsWith("Beat") Then Log("Execute: " & Command)
         '预处理信息，获取其类型与参数
+        Log(Command)
         If Command = "" Then Exit Sub
         Dim CommandType As String = Command.Split("|")(0)
+        Dim commanda
+        If CommandType = "Draw" Then
+            commanda = Command
+        End If
         Dim Parm As String = ""
         If Command.StartsWith(CommandType & "|") Then Parm = Command.Substring(CommandType.Length + 1)
         Dim Parms() As String = Parm.Split("|")
@@ -469,38 +564,89 @@ Public Class formMain
                                   End Sub)
 
             Case "Clear"
-                'Clear()：清空聊天栏
-                ChatClear()
+                'Clear()：清空聊天栏      'Clear(String 游戏模式)：为了兼容原版，此参数不必须
+                If Parms(0) = "" Or Parms(0) = "NSWC" Then
+                    ChatClear()
+                ElseIf Parms(0) = "NHWC" Then
+                    Dispatcher.Invoke(Sub() DrawBorad.Children.Clear())  '清空画板
+                End If
 
             Case "Beat"
                 'Beat(String 辨识码...)：回应心跳包并重置掉线计时
                 ClientSend("Beat|" & Parm, False)
                 ClientHeartbeatCount = 0
 
+            Case "Version"
+                'Version(Int 版本): 对接服务器版本号
+                Dispatcher.Invoke(Sub()
+                                      If Not Parms(0) = "" Then
+                                          If Convert.ToInt32(Parms(0)) = ClientVerMax Then
+                                              panSeverMessage.Visibility = Visibility.Collapsed
+                                          ElseIf Convert.ToInt32(Parms(0)) < ClientVerMax Then
+                                              SeverVerSay.Text = "目前连接的服务器版本低于客户端版本，这意味着服务端不兼容客户端提供的部分游戏，请谨慎创建游戏或咨询运营商。"
+                                          ElseIf Convert.ToInt32(Parms(0)) > ClientVerMax Then
+                                              SeverVerSay.Text = "目前连接的服务器版本高于客户端版本，这意味着客户端不兼容服务端提供的部分游戏，请谨慎创建游戏或咨询运营商。"
+                                          End If
+                                      End If
+                                  End Sub)
+
             Case "Center"
                 'Center(String[] 名称...)：进入大厅，并给出房间列表
                 UserState = UserStates.Center
                 Dispatcher.Invoke(Sub()
+                                      panChat.Margin = New Thickness(279, 46, 25, 25)
+                                      dbGrid.Visibility = Visibility.Collapsed
+                                      listChat.Visibility = Visibility.Visible
                                       listCenter.Items.Clear()
                                       listCenter.SelectedIndex = -1
                                       For Each Room As String In Parms
-                                          If Room.Trim.Length > 0 Then listCenter.Items.Add(Room.Trim)
+                                          If Room.Trim.Length > 0 Then
+                                              listCenter.Items.Add(Room.Trim)
+                                          End If
                                       Next
                                   End Sub)
 
             Case "Room"
                 'Room(String 名称)：进入房间，并给出房间名
                 UserState = UserStates.Room
-                Dispatcher.Invoke(Sub()
-                                      btnRoomPrepare.IsEnabled = Not UserMaster
-                                      btnRoomPrepare.Text = If(UserMaster, "开始游戏", "准备")
-                                      btnRoomExit.IsEnabled = True
-                                      labRoomName.Content = Parms(0)
-                                  End Sub)
+                If gameMode = "NSWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          panChat.Margin = New Thickness(279, 46, 25, 25)
+                                          labGameObserve.Visibility = Visibility.Collapsed
+                                          btnRoomPrepare.Visibility = Visibility.Visible
+                                          btnRoomPrepare.IsEnabled = Not UserMaster
+                                          btnRoomPrepare.Content = If(UserMaster, "开始游戏", "准备")
+                                          btnRoomExit.IsEnabled = True
+                                          labRoomName.Content = Parms(0)
+                                      End Sub)
+                ElseIf gameMode = "NHWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          dbGrid.Visibility = Visibility.Collapsed
+                                          listChat.Visibility = Visibility.Visible
+                                          listChat.Margin = New Thickness(0, 0, 0, 56)
+                                          panChat.Margin = New Thickness(279, 46, 25, 25)
+                                          labGameObserve.Visibility = Visibility.Collapsed
+                                          btnRoomPrepare.Visibility = Visibility.Visible
+                                          btnRoomPrepare.IsEnabled = Not UserMaster
+                                          btnRoomPrepare.Content = If(UserMaster, "开始游戏", "准备")
+                                          btnRoomExit.IsEnabled = True
+                                          labRoomName.Content = Parms(0)
+                                      End Sub)
+                End If
 
             Case "Game"
                 'Game(String 标题)：进入游戏页面，并给出标题
                 UserState = UserStates.Game
+                If gameMode = "NSWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          btnRoomPrepare.Visibility = Visibility.Collapsed
+                                      End Sub)
+                ElseIf gameMode = "NHWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          dbGrid.Visibility = Visibility.Visible
+                                          listChat.Margin = New Thickness(0, 309, 0, 56)
+                                      End Sub)
+                End If
                 Dispatcher.Invoke(Sub()
                                       labGameTitle.Content = Parms(0)
                                       Beep()
@@ -560,19 +706,329 @@ Public Class formMain
 
             Case "Select"
                 'Select(String? 选择1, String? 选择2)：改变选题区显示，若隐藏选题区则无参数
-                Dispatcher.Invoke(Sub()
-                                      If Parm = "" Then
-                                          '隐藏
-                                          panChat.Margin = New Thickness(250, 130, 25, 25)
-                                      Else
-                                          '显示
-                                          panChat.Margin = New Thickness(250, 200, 25, 25)
-                                          btnGameSelect1.Text = Parms(0)
-                                          btnGameSelect2.Text = Parms(1)
-                                      End If
-                                  End Sub)
-
+                If gameMode = "NHWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          If Parm = "" Then
+                                              '隐藏
+                                              panGameSelect.Visibility = Visibility.Hidden
+                                          Else
+                                              '显示
+                                              Beep()
+                                              panGameSelect.Visibility = Visibility.Visible
+                                              btnGameSelect1.Text = Parms(0)
+                                              btnGameSelect2.Text = Parms(1)
+                                          End If
+                                      End Sub)
+                ElseIf gameMode = "NSWC" Then
+                    Dispatcher.Invoke(Sub()
+                                          If Parm = "" Then
+                                              '隐藏
+                                              panChat.Margin = New Thickness(279, 68, 25, 25)
+                                              panGameSelect.Visibility = Visibility.Hidden
+                                          Else
+                                              '显示
+                                              'panChat.Margin = New Thickness(279, 46, 25, 25)
+                                              Beep()
+                                              panGameSelect.Visibility = Visibility.Visible
+                                              btnGameSelect1.Text = Parms(0)
+                                              btnGameSelect2.Text = Parms(1)
+                                          End If
+                                      End Sub)
+                End If
+            Case "Ping"
+                'Ping(String Start): 处理收到的服务器ping消息
+                If Not Parms(0) = "" Then
+                    Dispatcher.Invoke(Sub()
+                                          Dim a1 As TimeSpan = Date.Now - pingStartTime
+                                          Dim a2 As Integer = a1.TotalMilliseconds
+                                          Try
+                                              Dim tb As New TextBlock With {
+                                                .Text = "[本地] 服务器回应，Ping延迟：" + a2.ToString + " ms",
+                                                .FontSize = 14,
+                                                .FontWeight = If(True, FontWeights.Bold, FontWeights.Normal),
+                                                .Tag = GetUUID()
+                                              }
+                                              tb.Margin = New Thickness With {
+                                                .Top = 5,
+                                                .Bottom = 5
+                                              }
+                                              listChat.Items.Add(tb)
+                                              If listChat.Items.Count >= 100 Then listChat.Items.RemoveAt(0)
+                                              listChat.ScrollIntoView(tb)
+                                          Catch
+                                          End Try
+                                      End Sub)
+                End If
+            Case "Mode"
+                'Mode(String 游戏模式): 设置游戏模式，此功能为兼容原版不必须
+                If Not Parms(0) = "" Then
+                    If Parms(0) = "NHWC" Then '你画我猜
+                        gameMode = Parms(0)
+                        '更改标题
+                        Dispatcher.Invoke(Sub() Title = LoadTitle & " - " & UserName & " - " & "你画我猜")
+                    End If
+                End If
+            Case "UI"
+                'UI（String UI名称, boolren 显示状态）:对UI进行隐藏、显示
+                If Not Parms(0) = "" Then
+                    If Parms(0) = "dbGrid" Then
+                        Dispatcher.Invoke(Sub()
+                                              dbGrid.Visibility = If(Parms(1) = "True", Visibility.Visible, Visibility.Collapsed)
+                                          End Sub)
+                    ElseIf Parms(0) = "listChat" Then
+                        Dispatcher.Invoke(Sub()
+                                              If Parms(1) = "True" Then
+                                                  listChat.Margin = New Thickness(0, 0, 0, 56)
+                                                  panChat.Margin = New Thickness(279, 68, 25, 25)
+                                              Else
+                                                  listChat.Margin = New Thickness(0, 309, 0, 56)
+                                              End If
+                                          End Sub)
+                    End If
+                End If
+            Case "Drawable"
+                'Drawable(boolren 是否禁用画板): 禁用画板
+                If Parms(0) = "True" Then
+                    penColor = Brushes.Black
+                    Dispatcher.Invoke(Sub()
+                                          ban.Visibility = Visibility.Collapsed
+                                          pen.Visibility = Visibility.Visible
+                                          rubber.Visibility = Visibility.Visible
+                                          clear.Visibility = Visibility.Visible
+                                          setpen.Visibility = Visibility.Visible
+                                      End Sub)
+                Else
+                    penColor = Brushes.White
+                    Dispatcher.Invoke(Sub()
+                                          ban.Visibility = Visibility.Visible
+                                          pen.Visibility = Visibility.Collapsed
+                                          rubber.Visibility = Visibility.Collapsed
+                                          clear.Visibility = Visibility.Collapsed
+                                          setpen.Visibility = Visibility.Collapsed
+                                      End Sub)
+                End If
+            Case "Draw"
+                'Draw(int 坐标条数，Strings 坐标组): 在画板上绘制
+                If Not ban.Visibility = Visibility.Visible Then Exit Sub
+                Dim Parmsin = Parms
+                Dim color = If(Parmsin(0) = "black", Brushes.Black, Brushes.White)
+                Dim thickness = Parmsin(1)
+                Dim dstartPoint As Point = New Point With {
+                                        .X = Convert.ToInt32(Parmsin(2).Split(",")(0)),
+                                        .Y = Convert.ToInt32(Parmsin(2).Split(",")(1))
+                                       }
+                Dim dlastpoint As Point = dstartPoint
+                For i = 3 To Parmsin.Length
+                    Dim num = i
+                    Dispatcher.Invoke(Sub()
+                                          '画到控件上
+                                          Dim line As Line = New Line With {
+                                                    .Stroke = color,
+                                                    .StrokeThickness = thickness,
+                                                    .X1 = dlastpoint.X,
+                                                    .Y1 = dlastpoint.Y,
+                                                    .X2 = Convert.ToInt32(Parmsin(num).Split(",")(0)),
+                                                    .Y2 = Convert.ToInt32(Parmsin(num).Split(",")(1))
+                                                    }
+                                          dlastpoint.X = line.X2
+                                          dlastpoint.Y = line.Y2
+                                          DrawBorad.Children.Add(line)
+                                      End Sub)
+                Next i
         End Select
     End Sub
 
+    Private Sub Back_Click(sender As Object, e As RoutedEventArgs)
+        If isShowUpdate Then
+            mainLogin.Visibility = Visibility.Visible
+            mainUpd.Visibility = Visibility.Collapsed
+            isShowUpdate = False
+        ElseIf isShowCreate Then
+            isShowCreate = False
+            panModeSelect.Visibility = Visibility.Collapsed
+        ElseIf UserState = UserStates.Center Then
+            Dispatcher.Invoke(Sub() labLogin.Content = "")
+            LoginOff()
+        ElseIf UserState = UserStates.Room Then
+            ClientSend("Leave")
+            btnRoomPrepare.Visibility = Visibility.Visible
+            btnRoomPrepare.IsEnabled = False
+        End If
+    End Sub
+
+    Private Sub Button_Click(sender As Object, e As RoutedEventArgs)
+        If Not isShowUpdate Then
+            mainLogin.Visibility = Visibility.Collapsed
+            mainUpd.Visibility = Visibility.Visible
+            isShowUpdate = True
+        End If
+    End Sub
+
+    Private Sub Button_Click_1(sender As Object, e As RoutedEventArgs)
+        Process.Start("https://afdian.net/@LTCat")
+    End Sub
+
+    Private Sub Button_Click_2(sender As Object, e As RoutedEventArgs)
+        Process.Start("https://github.com/Stapxs")
+    End Sub
+
+#Region "Game - NHWC | 你画我猜画板处理"
+
+    Private Declare Function GetCursorPos Lib "user32" (ByRef lpPoint As POINTAPI) As Long '全屏坐标声明
+    Private Declare Function ScreenToClient Lib "user32.dll" (ByVal hwnd As Int32, ByRef lpPoint As POINTAPI) As Int32 '窗口坐标声明
+    Private Structure POINTAPI '声明坐标变量
+        Public x As Int32 '声明坐标变量为32位
+        Public y As Int32 '声明坐标变量为32位
+    End Structure
+
+    Dim th As Thread
+    Dim isStopDraw As Boolean
+    Dim lastPoint As Point
+    Dim isOutOBE As Boolean = False
+    Dim penColor = Brushes.Black
+    Dim penThickness = 2
+    Dim pointlist As String = ""
+    Dim pointNum As Integer = 0
+
+    Private Sub DrawBorad_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs)
+        isStopDraw = False
+        '绘画线程
+        th = New Thread(Sub()
+                            Dim sendtime = 0
+                            While Not isStopDraw
+                                Dispatcher.Invoke(Sub()
+                                                      '获取鼠标坐标
+                                                      Dim X As Double = e.GetPosition(DrawBorad).X
+                                                      Dim Y As Double = e.GetPosition(DrawBorad).Y
+                                                      '超界判断
+                                                      UpdateLayout()
+                                                      If （X < 0 Or Y < 0 Or X > dbGrid.Width Or Y > dbGrid.Height) And Not isOutOBE Then
+                                                          isOutOBE = True
+                                                          If Not pointlist = "" Then
+                                                              ClientSend("Draw|" + pointNum.ToString + "|" + pointlist)
+                                                          End If
+                                                          pointlist = ""
+                                                          pointNum = 0
+                                                          Return
+                                                      End If
+                                                      '判断开始
+                                                      If （lastPoint = Nothing) Or isOutOBE Then
+                                                          isOutOBE = False
+                                                          lastPoint.X = X
+                                                          lastPoint.Y = Y
+                                                          If pointlist = "" Then
+                                                              If penColor Is Brushes.White Then
+                                                                  pointlist = pointlist + "white|"
+                                                                  pointlist = pointlist + "6"
+                                                              Else
+                                                                  pointlist = pointlist + "black|"
+                                                                  pointlist = pointlist + "2"
+                                                              End If
+                                                              pointlist = pointlist + "|" + Convert.ToInt32(X).ToString + "," + Convert.ToInt32(Y).ToString + ""
+                                                              pointNum += 3
+                                                          Else
+                                                              pointlist = pointlist + "|" + Convert.ToInt32(X).ToString + "," + Convert.ToInt32(Y).ToString + ""
+                                                              pointNum += 1
+                                                          End If
+                                                          Return
+                                                      End If
+                                                      '画到控件上
+                                                      Dim line As Line = New Line With {
+                                                      .Stroke = penColor,
+                                                      .StrokeThickness = penThickness,
+                                                      .X1 = lastPoint.X,
+                                                      .Y1 = lastPoint.Y,
+                                                      .X2 = X,
+                                                      .Y2 = Y
+                                                      }
+                                                      lastPoint.X = X
+                                                      lastPoint.Y = Y
+                                                      DrawBorad.Children.Add(line)
+                                                      If Math.Sqrt(((line.X1 - line.X2) * (line.X1 - line.X2)) + ((line.Y1 - line.Y2) * (line.Y1 - line.Y2))) >= 2 Then
+                                                          pointlist = pointlist + "|" + Convert.ToInt32(X).ToString + "," + Convert.ToInt32(Y).ToString
+                                                          pointNum += 1
+                                                      End If
+                                                  End Sub)
+                                Thread.Sleep(20)
+                                sendtime += 1
+                                If sendtime >= 5 And pointNum > 1 Then
+                                    'lastPoint = New Point(0, 0)
+                                    If Not pointlist = "" Then
+                                        ClientSend("Draw|" + pointlist)
+                                    End If
+                                    pointlist = ""
+                                    pointNum = 3
+                                    If penColor Is Brushes.White Then
+                                        pointlist = pointlist + "white|"
+                                        pointlist = pointlist + "6"
+                                    Else
+                                        pointlist = pointlist + "black|"
+                                        pointlist = pointlist + "2"
+                                    End If
+                                    pointlist = pointlist + "|" + Convert.ToInt32(lastPoint.X).ToString + "," + Convert.ToInt32(lastPoint.Y).ToString
+                                End If
+                            End While
+                        End Sub)
+        th.Start()
+    End Sub
+
+    Private Sub DrawBorad_MouseLeftButtonUp(sender As Object, e As MouseButtonEventArgs)
+        isStopDraw = True
+        'lastPoint = New Point(0, 0)
+        isOutOBE = True
+        If Not pointlist = "" Then
+            ClientSend("Draw|" + pointlist)
+        End If
+        pointlist = ""
+        pointNum = 0
+    End Sub
+
+    Private Sub Rubber_Click(sender As Object, e As RoutedEventArgs)
+        penColor = Brushes.White
+        penThickness = 6
+    End Sub
+
+    Private Sub Pen_Click(sender As Object, e As RoutedEventArgs)
+        penColor = Brushes.Black
+        penThickness = 3
+    End Sub
+
+    Private Sub Clear_Click(sender As Object, e As RoutedEventArgs)
+        DrawBorad.Children.Clear()
+        ClientSend("Clear|NHWC")
+    End Sub
+
+#End Region
+
+#Region "Center | 创建游戏类型处理"
+
+    Private Sub BtnModeSelect1_Click(sender As Object, e As RoutedEventArgs) Handles btnModeSelect1.Click
+        '你说我猜
+        panModeSelect.Visibility = Visibility.Collapsed
+        UserMaster = True
+        ClientSend("Create")
+        btnRoomExit.IsEnabled = True
+        gameMode = "NSWC"
+        Title = LoadTitle & " - " & UserName & " - " & "你说我猜"
+    End Sub
+
+    Private Sub BtnModeSelect2_Click(sender As Object, e As RoutedEventArgs)
+        '你画我猜
+        panModeSelect.Visibility = Visibility.Collapsed
+        UserMaster = True
+        ClientSend("Create|NHWC")
+        btnRoomExit.IsEnabled = True
+        gameMode = "NHWC"
+        Dispatcher.Invoke(Sub() Title = LoadTitle & " - " & UserName & " - " & "你画我猜")
+    End Sub
+
+#End Region
+
+    Private Sub Button_Click_3(sender As Object, e As RoutedEventArgs)
+        panSeverMessage.Visibility = Visibility.Collapsed
+    End Sub
+
+    Private Sub Set_Click(sender As Object, e As RoutedEventArgs)
+
+    End Sub
 End Class
